@@ -142,26 +142,44 @@ function transform(babel) {
     const tokens = tokenize(code);
 
     let i = 0;
+    
+    // Add input validation
+    if (!tokens || !tokens.length) {
+      throw new Error('Invalid input: Empty or invalid code');
+    }
+
     function parseExpression() {
       let left = parseBinary();
-      while (true) {
+      
+      // Add iteration limit to prevent infinite loops
+      let iterations = 0;
+      const MAX_ITERATIONS = 1000;
+      
+      while (iterations++ < MAX_ITERATIONS) {
         const token = tokens[i];
-        if (token !== undefined) {
-          switch (token.type) {
-            case '||':
-            case '&&': {
-              i++;
-              const right = parseBinary();
-              if (right === null) {
-                throw Error('Missing expression after ' + token.type);
-              }
-              left = t.logicalExpression(token.type, left, right);
-              continue;
+        if (!token) break;
+        
+        switch (token.type) {
+          case '||':
+          case '&&': {
+            i++;
+            const right = parseBinary();
+            if (!right) {
+              throw new Error(`Missing expression after ${token.type}`);
             }
+            left = t.logicalExpression(token.type, left, right);
+            continue;
           }
+          default:
+            break;
         }
         break;
       }
+
+      if (iterations >= MAX_ITERATIONS) {
+        throw new Error('Maximum iteration limit reached while parsing');
+      }
+
       return left;
     }
 
@@ -334,3 +352,4 @@ function transform(babel) {
 }
 
 module.exports = transform;
+

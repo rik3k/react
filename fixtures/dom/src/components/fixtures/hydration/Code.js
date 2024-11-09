@@ -1,53 +1,69 @@
 import {findDOMNode} from '../../../find-dom-node';
+import PropTypes from 'prop-types';
 
 const React = window.React;
 
 export class CodeEditor extends React.Component {
-  shouldComponentUpdate() {
-    return false;
+  static propTypes = {
+    code: PropTypes.string,
+    onChange: PropTypes.func.isRequired
+  };
+
+  shouldComponentUpdate(nextProps) {
+    return this.props.code !== nextProps.code;
   }
 
   componentDidMount() {
-    this.textarea = findDOMNode(this);
+    this.textareaRef = React.createRef();
 
-    // Important: CodeMirror incorrectly lays out the editor
-    // if it executes before CSS has loaded
-    // https://github.com/graphql/graphiql/issues/33#issuecomment-318188555
     Promise.all([
       import('codemirror'),
       import('codemirror/mode/jsx/jsx'),
       import('codemirror/lib/codemirror.css'),
       import('./codemirror-paraiso-dark.css'),
-    ]).then(([CodeMirror]) => this.install(CodeMirror));
+    ])
+    .then(([CodeMirror]) => this.install(CodeMirror))
+    .catch(error => {
+      console.error('Failed to load CodeMirror:', error);
+    });
   }
 
   install(CodeMirror) {
-    if (!this.textarea) {
+    if (!this.textareaRef.current) {
       return;
     }
 
     const {onChange} = this.props;
 
-    this.editor = CodeMirror.fromTextArea(this.textarea, {
+    this.editor = CodeMirror.fromTextArea(this.textareaRef.current, {
       mode: 'jsx',
       theme: 'paraiso-dark',
       lineNumbers: true,
     });
 
-    this.editor.on('change', function (doc) {
+    if (this.editorChangeHandler) {
+      this.editor.off('change', this.editorChangeHandler);
+    }
+
+    this.editorChangeHandler = (doc) => {
       onChange(doc.getValue());
-    });
+    };
+
+    this.editor.on('change', this.editorChangeHandler);
   }
 
   componentWillUnmount() {
     if (this.editor) {
+      this.editor.off('change', this.editorChangeHandler);
       this.editor.toTextArea();
+      this.editor = null;
     }
   }
 
   render() {
     return (
       <textarea
+        ref={this.textareaRef}
         defaultValue={this.props.code}
         autoComplete="off"
         hidden={true}

@@ -28,6 +28,10 @@ ReactNoop.flush();
 `;
 
 class App extends Component {
+  static propTypes = {
+    // Add relevant prop validations
+  };
+
   constructor(props) {
     super(props);
     this.state = {
@@ -54,76 +58,83 @@ class App extends Component {
   }
 
   runCode(code) {
-    let currentStage;
-    let currentRoot;
+    try {
+      const runSafeCode = new Function('React', 'ReactNoop', 'expect', 'log', code);
+      
+      let currentStage;
+      let currentRoot;
 
-    ReactFiberInstrumentation.debugTool = null;
-    ReactNoop.render(null);
-    ReactNoop.flush();
-    ReactFiberInstrumentation.debugTool = {
-      onMountContainer: root => {
-        currentRoot = root;
-      },
-      onUpdateContainer: root => {
-        currentRoot = root;
-      },
-      onBeginWork: fiber => {
-        const fibers = getFiberState(currentRoot, fiber);
-        const stage = currentStage;
-        this.setState(({history}) => ({
-          history: [
-            ...history,
-            {
-              action: 'BEGIN',
-              fibers,
-              stage,
-            },
-          ],
-        }));
-      },
-      onCompleteWork: fiber => {
-        const fibers = getFiberState(currentRoot, fiber);
-        const stage = currentStage;
-        this.setState(({history}) => ({
-          history: [
-            ...history,
-            {
-              action: 'COMPLETE',
-              fibers,
-              stage,
-            },
-          ],
-        }));
-      },
-      onCommitWork: fiber => {
-        const fibers = getFiberState(currentRoot, fiber);
-        const stage = currentStage;
-        this.setState(({history}) => ({
-          history: [
-            ...history,
-            {
-              action: 'COMMIT',
-              fibers,
-              stage,
-            },
-          ],
-        }));
-      },
-    };
-    window.React = React;
-    window.ReactNoop = ReactNoop;
-    window.expect = () => ({
-      toBe() {},
-      toContain() {},
-      toEqual() {},
-    });
-    window.log = s => (currentStage = s);
-    // eslint-disable-next-line
-    eval(
-      window.Babel.transform(code, {
-        presets: ['react', 'es2015'],
-      }).code
-    );
+      ReactFiberInstrumentation.debugTool = {
+        onMountContainer: root => {
+          currentRoot = root;
+        },
+        onUpdateContainer: root => {
+          currentRoot = root;
+        },
+        onBeginWork: fiber => {
+          const fibers = getFiberState(currentRoot, fiber);
+          const stage = currentStage;
+          this.setState(({history}) => ({
+            history: [
+              ...history,
+              {
+                action: 'BEGIN',
+                fibers,
+                stage,
+              },
+            ],
+          }));
+        },
+        onCompleteWork: fiber => {
+          const fibers = getFiberState(currentRoot, fiber);
+          const stage = currentStage;
+          this.setState(({history}) => ({
+            history: [
+              ...history,
+              {
+                action: 'COMPLETE',
+                fibers,
+                stage,
+              },
+            ],
+          }));
+        },
+        onCommitWork: fiber => {
+          const fibers = getFiberState(currentRoot, fiber);
+          const stage = currentStage;
+          this.setState(({history}) => ({
+            history: [
+              ...history,
+              {
+                action: 'COMMIT',
+                fibers,
+                stage,
+              },
+            ],
+          }));
+        },
+      };
+
+      runSafeCode(
+        React,
+        ReactNoop,
+        () => ({
+          toBe() {},
+          toContain() {},
+          toEqual() {},
+        }),
+        s => (currentStage = s)
+      );
+
+    } catch (error) {
+      console.error('Failed to run code:', error);
+      // Handle error state
+    }
+  }
+
+  componentDidCatch(error, info) {
+    console.error('Error in fiber debugger:', error, info);
+    // Handle error state
   }
 
   handleEdit = e => {
